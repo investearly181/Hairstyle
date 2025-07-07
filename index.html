@@ -6,127 +6,131 @@
   <title>Virtual Hairstyle Try‑On</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    #previewCanvas, #photoCanvas {
-      width:100%;
-      border-radius:1rem;
-    }
-    #photoCanvas{display:none;}
+    body{background:#f3f4f6}
+    video,#photoCanvas{width:100%;border-radius:1rem;background:#000}
+    #photoCanvas{display:none}
+    [data-step]{display:none}
+    .active{display:block}
     .thumb{cursor:pointer;transition:transform .2s;}
     .thumb:hover{transform:scale(1.05)}
-    [data-step]{display:none;}
-    .active{display:block;}
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+<body class="min-h-screen flex flex-col items-center p-4">
   <h1 class="text-2xl font-bold mb-6">💇‍♀️ Virtual Hairstyle Try‑On</h1>
 
-  <!-- STEP‑1: Gender selection -->
-  <section id="step1" data-step class="active w-full max-w-md space-y-4">
-    <h2 class="text-lg font-semibold text-center">Select your gender</h2>
+  <!-- STEP 1: Gender selection -->
+  <section id="step1" data-step class="active w-full max-w-md space-y-4 text-center">
+    <h2 class="text-lg font-semibold">Select your gender</h2>
     <div class="flex justify-around">
       <button class="bg-indigo-600 text-white px-6 py-3 rounded" onclick="chooseGender('male')">Male</button>
       <button class="bg-pink-600 text-white px-6 py-3 rounded" onclick="chooseGender('female')">Female</button>
     </div>
+    <p class="text-xs text-gray-500">(Tool requires HTTPS & camera permission)</p>
   </section>
 
-  <!-- STEP‑2: Camera preview & capture -->
-  <section id="step2" data-step class="w-full max-w-md">
-    <video id="video" autoplay playsinline class="w-full rounded-lg bg-black"></video>
-    <button class="mt-4 w-full bg-green-600 text-white py-2 rounded" onclick="takePhoto()">📸 Capture Photo</button>
-    <p class="text-center text-sm text-gray-500 mt-2">(Make sure your face is well‑lit)</p>
+  <!-- STEP 2: Camera preview & capture -->
+  <section id="step2" data-step class="w-full max-w-md space-y-3">
+    <video id="video" autoplay playsinline muted></video>
+    <button id="captureBtn" class="w-full bg-green-600 text-white py-2 rounded opacity-50 cursor-not-allowed" disabled onclick="takePhoto()">📸 Capture Photo</button>
+    <p class="text-center text-sm text-gray-500">Make sure your face is well‑lit & camera allowed</p>
   </section>
 
-  <!-- STEP‑3: Display photo + hairstyle options -->
+  <!-- STEP 3: Photo + hairstyles -->
   <section id="step3" data-step class="w-full max-w-md">
     <canvas id="photoCanvas"></canvas>
     <h2 class="text-lg font-semibold mt-4 mb-2 text-center">Choose a hairstyle</h2>
     <div id="styleGrid" class="grid grid-cols-3 gap-3"></div>
   </section>
 
-  <script>
-    let gender = "male";
-    let stream;
-    const video = document.getElementById('video');
-    const photoCanvas = document.getElementById('photoCanvas');
-    const pctx = photoCanvas.getContext('2d');
-    const styleGrid = document.getElementById('styleGrid');
+<script>
+let gender="male";
+let stream=null;
+let videoReady=false;
+const video=document.getElementById('video');
+const captureBtn=document.getElementById('captureBtn');
+const photoCanvas=document.getElementById('photoCanvas');
+const ctx=photoCanvas.getContext('2d');
+const styleGrid=document.getElementById('styleGrid');
 
-    const maleStyles = [
-      "https://i.ibb.co/k1v7HDx/male1.png",
-      "https://i.ibb.co/QHpTRWj/male2.png",
-      "https://i.ibb.co/PZBDLKt/male3.png"
-    ];
-    const femaleStyles = [
-      "https://i.ibb.co/YLyDYXq/female1.png",
-      "https://i.ibb.co/dgFM9yJ/female2.png",
-      "https://i.ibb.co/8Nns1qg/female3.png"
-    ];
+/* === Replace these URLs with your own PNGs if desired === */
+const maleStyles=[
+  "https://i.ibb.co/SR3n9W4/male1.png",  // short fade style (PNG, transparent)
+  "https://i.ibb.co/D4Mn6w5/male2.png",  // medium quiff style
+  "https://i.ibb.co/2PZQHQ7/male3.png"   // long wavy
+];
+const femaleStyles=[
+  "https://i.ibb.co/YLyDYXq/female1.png", // long straight
+  "https://i.ibb.co/dgFM9yJ/female2.png", // shoulder bob
+  "https://i.ibb.co/9TqBfqR/female3.png"  // curly style
+];
+/* ======================================================= */
 
-    function switchStep(n){
-      document.querySelectorAll('[data-step]').forEach((s,i)=>{
-        s.classList.toggle('active',i===n-1);
-      });
-    }
+function switchStep(n){
+  document.querySelectorAll('[data-step]').forEach((sec,i)=>sec.classList.toggle('active',i===n-1));
+}
 
-    function chooseGender(g){
-      gender = g;
-      switchStep(2);
-      startCamera();
-    }
+function chooseGender(g){
+  gender=g;
+  switchStep(2);
+  startCamera();
+}
 
-    async function startCamera(){
-      try{
-        stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
-        video.srcObject = stream;
-      }catch(e){
-        alert('Camera access denied');
+async function startCamera(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    video.srcObject=stream;
+    video.onloadedmetadata=()=>video.play();
+    video.addEventListener('loadeddata',()=>{
+      if(video.videoWidth>0){
+        videoReady=true;
+        captureBtn.disabled=false;
+        captureBtn.classList.remove('opacity-50','cursor-not-allowed');
       }
-    }
+    });
+  }catch(err){
+    alert('Unable to access camera. Ensure HTTPS and permission.');
+  }
+}
 
-    function takePhoto(){
-      if (!stream) {
-        alert("Camera not initialized.");
-        return;
-      }
-      const w = video.videoWidth;
-      const h = video.videoHeight;
-      photoCanvas.width = w; 
-      photoCanvas.height = h;
-      pctx.drawImage(video, 0, 0, w, h);
-      video.pause();
-      stream.getTracks().forEach(t => t.stop());
-      photoCanvas.style.display = 'block';
-      generateThumbnails();
-      switchStep(3);
-    }
+function takePhoto(){
+  if(!videoReady){alert('Camera not ready');return;}
+  const w=video.videoWidth, h=video.videoHeight;
+  photoCanvas.width=w; photoCanvas.height=h;
+  ctx.drawImage(video,0,0,w,h);
+  if(stream){stream.getTracks().forEach(t=>t.stop());}
+  video.srcObject=null;
+  photoCanvas.style.display='block';
+  generateThumbnails();
+  switchStep(3);
+}
 
-    function generateThumbnails(){
-      styleGrid.innerHTML = '';
-      const list = gender === 'male' ? maleStyles : femaleStyles;
-      list.forEach(src => {
-        const img = document.createElement('img');
-        img.src = src;
-        img.className = 'thumb w-full rounded';
-        img.onclick = () => applyStyle(src);
-        styleGrid.appendChild(img);
-      });
-    }
+function generateThumbnails(){
+  styleGrid.innerHTML='';
+  (gender==='male'?maleStyles:femaleStyles).forEach(src=>{
+    const img=document.createElement('img');
+    img.src=src;
+    img.alt='hairstyle';
+    img.className='thumb w-full rounded';
+    img.onerror=()=>{img.style.opacity='0.3';img.title='Image failed to load';}
+    img.onclick=()=>applyStyle(src);
+    styleGrid.appendChild(img);
+  });
+}
 
-    function applyStyle(src){
-      const w = photoCanvas.width;
-      const h = photoCanvas.height;
-      const img = new Image();
-      img.src = src;
-      img.onload = () => {
-        pctx.drawImage(photoCanvas, 0, 0); // reset to original photo
-        const ratio = 0.6; // scale factor of canvas width
-        const iw = w * ratio;
-        const ih = img.height / img.width * iw;
-        const x = w / 2 - iw / 2;
-        const y = h * 0.1;
-        pctx.drawImage(img, x, y, iw, ih);
-      }
-    }
-  </script>
+function applyStyle(src){
+  const w=photoCanvas.width, h=photoCanvas.height;
+  const overlay=new Image();
+  overlay.crossOrigin='anonymous';
+  overlay.src=src;
+  overlay.onload=()=>{
+    ctx.drawImage(photoCanvas,0,0); // reset to original capture
+    const iw=w*0.6;
+    const ih=overlay.height/overlay.width*iw;
+    const x=w/2 - iw/2;
+    const y=h*0.08;
+    ctx.drawImage(overlay,x,y,iw,ih);
+  };
+}
+</script>
 </body>
 </html>
