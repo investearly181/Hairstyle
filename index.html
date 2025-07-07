@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Virtual Hairstyle Try‑On</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* basic styling */
+    body{background:#f3f4f6}
+    [data-step]{display:none}
+    .active{display:block}
+    video,#photoCanvas{width:100%;border-radius:1rem;background:#000}
+    #photoCanvas{display:none}
+    .thumb{cursor:pointer;transition:transform .2s}
+    .thumb:hover{transform:scale(1.05)}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+  <h1 class="text-2xl font-bold mb-6">💇‍♀️ Virtual Hairstyle Try‑On</h1>
+
+  <!-- STEP 1: Gender selection -->
+  <section id="step1" data-step class="active w-full max-w-md space-y-4 text-center">
+    <h2 class="text-lg font-semibold">Select your gender</h2>
+    <div class="flex justify-around">
+      <button class="bg-indigo-600 text-white px-6 py-3 rounded" onclick="chooseGender('male')">Male</button>
+      <button class="bg-pink-600 text-white px-6 py-3 rounded" onclick="chooseGender('female')">Female</button>
+    </div>
+    <p class="text-xs text-gray-500">(Tool requires HTTPS & camera permission)</p>
+  </section>
+
+  <!-- STEP 2: Camera preview & capture -->
+  <section id="step2" data-step class="w-full max-w-md space-y-3">
+    <video id="video" playsinline autoplay muted></video>
+    <button id="captureBtn" class="w-full bg-green-600 text-white py-2 rounded opacity-50 cursor-not-allowed" disabled onclick="takePhoto()">📸 Capture Photo</button>
+    <p class="text-center text-sm text-gray-500">Make sure your face is well‑lit & camera allowed</p>
+  </section>
+
+  <!-- STEP 3: Photo + hairstyles -->
+  <section id="step3" data-step class="w-full max-w-md">
+    <canvas id="photoCanvas"></canvas>
+    <h2 class="text-lg font-semibold mt-4 mb-2 text-center">Choose a hairstyle</h2>
+    <div id="styleGrid" class="grid grid-cols-3 gap-3"></div>
+  </section>
+
+<script>
+let gender="male";
+let stream=null;
+let videoReady=false;
+const video=document.getElementById('video');
+const captureBtn=document.getElementById('captureBtn');
+const photoCanvas=document.getElementById('photoCanvas');
+const ctx=photoCanvas.getContext('2d');
+const styleGrid=document.getElementById('styleGrid');
+
+const maleStyles=[
+  'https://i.imgur.com/1rX8v9y.png',
+  'https://i.imgur.com/G1x6k80.png',
+  'https://i.imgur.com/0xKVQ7H.png'
+];
+const femaleStyles=[
+  'https://i.imgur.com/vwBSP8D.png',
+  'https://i.imgur.com/E9uQFBZ.png',
+  'https://i.imgur.com/o8hv9zZ.png'
+];
+
+function switchStep(n){
+  document.querySelectorAll('[data-step]').forEach((sec,i)=>sec.classList.toggle('active',i===n-1));
+}
+
+function chooseGender(g){
+  gender=g;
+  switchStep(2);
+  startCamera();
+}
+
+async function startCamera(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    video.srcObject=stream;
+    video.onloadedmetadata=()=>{
+      video.play();
+    };
+    video.addEventListener('loadeddata',()=>{
+      if(video.videoWidth>0){
+        videoReady=true;
+        captureBtn.disabled=false;
+        captureBtn.classList.remove('opacity-50','cursor-not-allowed');
+      }
+    });
+  }catch(err){
+    alert('Unable to access camera. Ensure you are on HTTPS and have granted permission. Error: '+err.message);
+  }
+}
+
+function takePhoto(){
+  if(!videoReady){alert('Camera not ready');return;}
+  const w=video.videoWidth;const h=video.videoHeight;
+  if(!w||!h){alert('Video dimensions unavailable');return;}
+  photoCanvas.width=w;photoCanvas.height=h;
+  ctx.drawImage(video,0,0,w,h);
+  // stop stream
+  if(stream){stream.getTracks().forEach(t=>t.stop());}
+  video.srcObject=null;
+  photoCanvas.style.display='block';
+  generateStyleThumbnails();
+  switchStep(3);
+}
+
+function generateStyleThumbnails(){
+  styleGrid.innerHTML='';
+  (gender==='male'?maleStyles:femaleStyles).forEach(src=>{
+    const img=document.createElement('img');
+    img.src=src;img.className='thumb w-full rounded';
+    img.onload=null;
+    img.onclick=()=>applyStyle(src);
+    styleGrid.appendChild(img);
+  });
+}
+
+function applyStyle(src){
+  const w=photoCanvas.width;const h=photoCanvas.height;
+  const img=new Image();
+  img.src=src;
+  img.onload=()=>{
+    // reset to captured photo first
+    ctx.drawImage(photoCanvas,0,0,w,h);
+    const iw=w*0.6;
+    const ih=img.height/img.width*iw;
+    const x=w/2 - iw/2;
+    const y=h*0.08; // slight offset from top
+    ctx.drawImage(img,x,y,iw,ih);
+  };
+}
+</script>
+</body>
+</html>
